@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="signalr.min.js"></script>
+    <script src="jquery.min.js"></script>
+
+    <script>
+      $(document).ready(() => {
+        const connection = new signalR.HubConnectionBuilder()
+          .withUrl("https://localhost:5001/messagehub")
+          .withAutomaticReconnect([1000, 1000, 2000]) //0 - 2 - 10 - 30
+          .build();
+
+        // connection.start();
+        start();
+
+        function animation() {
+          durum.fadeIn(2000, () => {
+            setTimeout(() => {
+              durum.fadeOut(2000);
+            }, 2000);
+          });
+        }
+
+        const durum = $("#durum");
+        connection.onreconnecting((error) => {
+          durum.css("background-color", "blue");
+          durum.css("color", "white");
+          durum.html("Bağlantı Kuruluyor...");
+          animation();
+        });
+        connection.onreconnected((connectionId) => {
+          durum.css("background-color", "green");
+          durum.css("color", "white");
+          durum.html("Bağlantı Kuruldu...");
+          animation();
+        });
+        connection.onclose((connectionId) => {
+          durum.css("background-color", "red");
+          durum.css("color", "white");
+          durum.html("Bağlanılamadı...");
+          animation();
+        });
+
+        $("#btnGonder").click(() => {
+          let message = $("#txtMessage").val();
+
+          let connectionIds = $("#connectionIds").val().split(",");
+          let groups = $("#txtGroups").val().split(",");
+          //   connection
+          //     .invoke("SendMessageAsync", message, connectionIds).catch((error) =>console.log(`Mesaj Gönderilirken Hata Oluştu ${error}`));
+          connection
+            .invoke(
+              "SendMessageAsync",
+              message,
+              groups
+            )
+            .catch((error) =>
+              console.log(`Mesaj Gönderilirken Hata Oluştu ${error}`)
+            );
+        });
+        //Bu metotla RPC sistemiyle server tarafından hangi metot tetikleniyorsa on fonksiyonuya bu metodu buradan tanımlayabiliyoruz.
+        connection.on("receiveMessage", (message) => {
+          $("#mesajlar").append(message + "<br>");
+        });
+
+        //Bağlantı hiç kurulmadığı durumlarda bu fonksiyon kullanılır.
+        async function start() {
+          try {
+            await connection.start();
+          } catch (error) {
+            setTimeout(() => start(), 2000);
+          }
+        }
+        let _connectionId = "";
+        connection.on("getConnectionId", (connectionId) => {
+          _connectionId = connectionId;
+          $("#connectionId").html(`Connection Id : ${connectionId}`);
+        });
+
+        $("#btnGrubaGir").click(() => {
+          let groupName = $("input[name=grup]:checked").val();
+          connection
+            .invoke("addGroup", _connectionId, groupName)
+            .catch((error) =>
+              console.log(`Mesaj Gönderilirken Hata Oluştuç ${error}`)
+            );
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <div style="background-color: black; color: white" id="connectionId"></div>
+    <br />
+    <input type="radio" name="grup" value="A" />A
+    <input type="radio" name="grup" value="B" />B
+    <input type="radio" name="grup" value="C" />C
+    <button id="btnGrubaGir">Gruba Gir</button>
+    <br />
+    <br />
+    <div id="durum" style="display: none"></div>
+    <input type="text" id="txtMessage" placeholder="Mesaj" /><br /><br />
+    <input type="text" id="txtGroups" placeholder="Groups" /><br /><br />
+    <textarea
+      id="connectionIds"
+      cols="21"
+      rows="5"
+      placeholder="Connection Id"
+    ></textarea>
+    <button id="btnGonder">Gönder</button>
+
+    <div id="mesajlar"></div>
+  </body>
+</html>
